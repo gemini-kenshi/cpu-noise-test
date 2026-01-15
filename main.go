@@ -15,11 +15,11 @@ func main() {
 
 	// Crypto mode flags
 	dataSize := flag.Int("data-size", 1024, "Data size in bytes per SHA256 operation (crypto mode)")
-	workers := flag.Int("workers", 1, "Number of concurrent worker goroutines (crypto mode)")
+	workers := flag.Int("workers", 1, "Number of concurrent worker goroutines (both modes)")
 
 	// UDP mode flags
 	target := flag.String("target", "127.0.0.1:1", "Target address:port (udp mode)")
-	rate := flag.Float64("rate", 0, "Send rate in packets per second (udp mode, 0 = unlimited)")
+	rate := flag.Float64("rate", 0, "Send rate in packets per second (udp mode, 0 = unlimited, rate is per worker)")
 
 	flag.Parse()
 
@@ -67,8 +67,9 @@ func main() {
 
 	case "udp":
 		config := UDPConfig{
-			Target: *target,
-			Rate:   *rate,
+			Target:  *target,
+			Rate:    *rate,
+			Workers: *workers,
 		}
 		if err = ValidateUDPConfig(config); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: Invalid UDP configuration: %v\n", err)
@@ -76,9 +77,9 @@ func main() {
 		}
 		rateStr := "unlimited"
 		if config.Rate > 0 {
-			rateStr = fmt.Sprintf("%.0f pps", config.Rate)
+			rateStr = fmt.Sprintf("%.0f pps (per worker)", config.Rate)
 		}
-		fmt.Fprintf(os.Stderr, "Starting UDP noise test (target=%s, rate=%s). Press Ctrl+C to stop.\n", config.Target, rateStr)
+		fmt.Fprintf(os.Stderr, "Starting UDP noise test (target=%s, rate=%s, workers=%d). Press Ctrl+C to stop.\n", config.Target, rateStr, config.Workers)
 		err = RunUDPNoise(ctx, config)
 	}
 

@@ -38,7 +38,8 @@ Defines and validates configuration structures:
   
 - **UDPConfig**: Configuration for UDP noise tests
   - `Target`: Target address and port (e.g., "127.0.0.1:1")
-  - `Rate`: Packets per second (0 = unlimited)
+  - `Rate`: Packets per second (0 = unlimited, rate is divided per worker)
+  - `Workers`: Number of concurrent worker goroutines
 
 Both configurations include validation functions to ensure parameters are within acceptable ranges.
 
@@ -59,8 +60,10 @@ Generates network stack interference:
 
 - **Purpose**: Creates UDP traffic to stress the network stack, similar to WireGuard's UDP dependency
 - **Implementation**:
-  - Opens a UDP connection to the target address
+  - Spawns multiple worker goroutines (configurable)
+  - Each worker creates its own UDP connection to the target address
   - Sends packets at a configurable rate (or maximum speed if rate is 0)
+  - When rate is specified, it's divided per worker (total rate = rate × workers)
   - Uses `time.Ticker` for rate limiting when specified
 - **Cancellation**: Responds to context cancellation for graceful shutdown
 
@@ -79,7 +82,7 @@ The application uses a context-based cancellation pattern:
 #### Concurrency Model
 
 - **Crypto Mode**: Uses `sync.WaitGroup` to manage multiple worker goroutines
-- **UDP Mode**: Single goroutine with rate limiting via `time.Ticker`
+- **UDP Mode**: Uses `sync.WaitGroup` to manage multiple worker goroutines, each with its own UDP connection
 - Both modes respect context cancellation for coordinated shutdown
 
 ### Data Flow
@@ -98,7 +101,7 @@ main.go: Select Mode
     │       └──→ Spawn N workers → SHA256 loops
     │
     └──→ udp.go: RunUDPNoise()
-            └──→ UDP send loop (rate-limited or unlimited)
+            └──→ Spawn N workers → Each worker: UDP send loop (rate-limited or unlimited)
     
 Signal Received (Ctrl+C)
     ↓
@@ -145,7 +148,8 @@ make clean
 #### UDP Mode Options
 
 - `--target`: Target address:port (default: "127.0.0.1:1")
-- `--rate`: Send rate in packets per second (default: 0 = unlimited)
+- `--rate`: Send rate in packets per second per worker (default: 0 = unlimited)
+- `--workers`: Number of concurrent worker goroutines (default: 1)
 
 ### Examples
 
@@ -163,19 +167,29 @@ Run with 4 workers and 2048 byte data blocks:
 
 #### UDP Noise Test
 
-Run with default settings (unlimited rate to 127.0.0.1:1):
+Run with default settings (1 worker, unlimited rate to 127.0.0.1:1):
 ```bash
 ./bin/cpu-noise-test --mode udp
 ```
 
-Run with rate limiting (1000 packets per second):
+Run with rate limiting (1000 packets per second per worker):
 ```bash
 ./bin/cpu-noise-test --mode udp --target 127.0.0.1:1 --rate 1000
 ```
 
-Run targeting a specific address and port:
+Run with multiple workers (5 workers, unlimited rate):
 ```bash
-./bin/cpu-noise-test --mode udp --target 192.168.1.100:51820 --rate 500
+./bin/cpu-noise-test --mode udp --workers 5
+```
+
+Run with multiple workers and rate limiting (3 workers, 30 pps total = 10 pps per worker):
+```bash
+./bin/cpu-noise-test --mode udp --workers 3 --rate 30
+```
+
+Run targeting a specific address and port with multiple workers:
+```bash
+./bin/cpu-noise-test --mode udp --target 192.168.1.100:51820 --rate 500 --workers 4
 ```
 
 ### Graceful Shutdown

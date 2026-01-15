@@ -12,8 +12,9 @@ func TestRunUDPNoise_ValidConfig_UnlimitedRate(t *testing.T) {
 	defer cancel()
 
 	config := UDPConfig{
-		Target: "127.0.0.1:1",
-		Rate:   0, // Unlimited
+		Target:  "127.0.0.1:1",
+		Rate:    0, // Unlimited
+		Workers: 1,
 	}
 
 	err := RunUDPNoise(ctx, config)
@@ -27,8 +28,9 @@ func TestRunUDPNoise_ValidConfig_WithRateLimit(t *testing.T) {
 	defer cancel()
 
 	config := UDPConfig{
-		Target: "127.0.0.1:1",
-		Rate:   10, // 10 packets per second
+		Target:  "127.0.0.1:1",
+		Rate:    10, // 10 packets per second
+		Workers: 1,
 	}
 
 	err := RunUDPNoise(ctx, config)
@@ -40,8 +42,9 @@ func TestRunUDPNoise_ValidConfig_WithRateLimit(t *testing.T) {
 func TestRunUDPNoise_InvalidTarget_Empty(t *testing.T) {
 	ctx := context.Background()
 	config := UDPConfig{
-		Target: "",
-		Rate:   0,
+		Target:  "",
+		Rate:    0,
+		Workers: 1,
 	}
 
 	err := RunUDPNoise(ctx, config)
@@ -53,8 +56,9 @@ func TestRunUDPNoise_InvalidTarget_Empty(t *testing.T) {
 func TestRunUDPNoise_InvalidTarget_InvalidFormat(t *testing.T) {
 	ctx := context.Background()
 	config := UDPConfig{
-		Target: "invalid-format",
-		Rate:   0,
+		Target:  "invalid-format",
+		Rate:    0,
+		Workers: 1,
 	}
 
 	err := RunUDPNoise(ctx, config)
@@ -77,8 +81,9 @@ func TestRunUDPNoise_InvalidTarget_InvalidPort(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			config := UDPConfig{
-				Target: tc.target,
-				Rate:   0,
+				Target:  tc.target,
+				Rate:    0,
+				Workers: 1,
 			}
 
 			err := RunUDPNoise(ctx, config)
@@ -92,8 +97,9 @@ func TestRunUDPNoise_InvalidTarget_InvalidPort(t *testing.T) {
 func TestRunUDPNoise_InvalidRate_Negative(t *testing.T) {
 	ctx := context.Background()
 	config := UDPConfig{
-		Target: "127.0.0.1:1",
-		Rate:   -1,
+		Target:  "127.0.0.1:1",
+		Rate:    -1,
+		Workers: 1,
 	}
 
 	err := RunUDPNoise(ctx, config)
@@ -102,11 +108,26 @@ func TestRunUDPNoise_InvalidRate_Negative(t *testing.T) {
 	}
 }
 
+func TestRunUDPNoise_InvalidWorkers(t *testing.T) {
+	ctx := context.Background()
+	config := UDPConfig{
+		Target:  "127.0.0.1:1",
+		Rate:    0,
+		Workers: 0,
+	}
+
+	err := RunUDPNoise(ctx, config)
+	if err == nil {
+		t.Fatal("RunUDPNoise should return error for invalid workers")
+	}
+}
+
 func TestRunUDPNoise_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	config := UDPConfig{
-		Target: "127.0.0.1:1",
-		Rate:   0,
+		Target:  "127.0.0.1:1",
+		Rate:    0,
+		Workers: 1,
 	}
 
 	// Start the test in a goroutine
@@ -133,8 +154,9 @@ func TestRunUDPNoise_ContextCancellation(t *testing.T) {
 func TestRunUDPNoise_ContextCancellation_WithRateLimit(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	config := UDPConfig{
-		Target: "127.0.0.1:1",
-		Rate:   100, // 100 packets per second
+		Target:  "127.0.0.1:1",
+		Rate:    100, // 100 packets per second
+		Workers: 1,
 	}
 
 	// Start the test in a goroutine
@@ -174,8 +196,9 @@ func TestRunUDPNoise_DifferentTargets(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			config := UDPConfig{
-				Target: tc.target,
-				Rate:   0,
+				Target:  tc.target,
+				Rate:    0,
+				Workers: 1,
 			}
 
 			err := RunUDPNoise(ctx, config)
@@ -203,8 +226,9 @@ func TestRunUDPNoise_DifferentRates(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			config := UDPConfig{
-				Target: "127.0.0.1:1",
-				Rate:   tc.rate,
+				Target:  "127.0.0.1:1",
+				Rate:    tc.rate,
+				Workers: 1,
 			}
 
 			err := RunUDPNoise(ctx, config)
@@ -235,8 +259,9 @@ func TestRunUDPNoise_WithUDPListener(t *testing.T) {
 	defer cancel()
 
 	config := UDPConfig{
-		Target: target,
-		Rate:   10, // 10 packets per second
+		Target:  target,
+		Rate:    10, // 10 packets per second
+		Workers: 1,
 	}
 
 	// Start receiving packets
@@ -263,5 +288,96 @@ func TestRunUDPNoise_WithUDPListener(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 		// It's okay if we don't receive packets - UDP is unreliable
 		t.Log("No packets received (this is acceptable for UDP)")
+	}
+}
+
+func TestRunUDPNoise_MultipleWorkers_UnlimitedRate(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	config := UDPConfig{
+		Target:  "127.0.0.1:1",
+		Rate:    0, // Unlimited
+		Workers: 3,
+	}
+
+	err := RunUDPNoise(ctx, config)
+	if err != nil {
+		t.Fatalf("RunUDPNoise returned error: %v", err)
+	}
+}
+
+func TestRunUDPNoise_MultipleWorkers_WithRateLimit(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	config := UDPConfig{
+		Target:  "127.0.0.1:1",
+		Rate:    30, // 30 packets per second total (10 per worker)
+		Workers: 3,
+	}
+
+	err := RunUDPNoise(ctx, config)
+	if err != nil {
+		t.Fatalf("RunUDPNoise returned error: %v", err)
+	}
+}
+
+func TestRunUDPNoise_MultipleWorkers_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	config := UDPConfig{
+		Target:  "127.0.0.1:1",
+		Rate:    0,
+		Workers: 5,
+	}
+
+	// Start the test in a goroutine
+	done := make(chan error, 1)
+	go func() {
+		done <- RunUDPNoise(ctx, config)
+	}()
+
+	// Cancel after a short delay
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	// Wait for the function to return
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("RunUDPNoise returned error: %v", err)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("RunUDPNoise did not respond to context cancellation")
+	}
+}
+
+func TestRunUDPNoise_DifferentWorkerCounts(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	testCases := []struct {
+		name    string
+		workers int
+	}{
+		{"Single worker", 1},
+		{"Two workers", 2},
+		{"Five workers", 5},
+		{"Ten workers", 10},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := UDPConfig{
+				Target:  "127.0.0.1:1",
+				Rate:    0,
+				Workers: tc.workers,
+			}
+
+			err := RunUDPNoise(ctx, config)
+			if err != nil {
+				t.Fatalf("RunUDPNoise returned error: %v", err)
+			}
+		})
 	}
 }
