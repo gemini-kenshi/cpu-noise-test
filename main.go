@@ -12,15 +12,15 @@ import (
 func main() {
 	// Parse flags
 	mode := flag.String("mode", "", "Test mode: 'crypto' or 'udp' (required)")
-	
+
 	// Crypto mode flags
 	dataSize := flag.Int("data-size", 1024, "Data size in bytes per SHA256 operation (crypto mode)")
 	workers := flag.Int("workers", 1, "Number of concurrent worker goroutines (crypto mode)")
-	
+
 	// UDP mode flags
 	target := flag.String("target", "127.0.0.1:1", "Target address:port (udp mode)")
 	rate := flag.Float64("rate", 0, "Send rate in packets per second (udp mode, 0 = unlimited)")
-	
+
 	flag.Parse()
 
 	// Validate mode
@@ -64,7 +64,7 @@ func main() {
 		}
 		fmt.Fprintf(os.Stderr, "Starting crypto load test (data-size=%d, workers=%d). Press Ctrl+C to stop.\n", config.DataSize, config.Workers)
 		err = RunCryptoLoad(ctx, config)
-		
+
 	case "udp":
 		config := UDPConfig{
 			Target: *target,
